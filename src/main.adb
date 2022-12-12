@@ -27,9 +27,30 @@ procedure main is
       end loop;
    end create_array;
 
+   protected task_manager is
+      procedure set_res (sum : in Long_Long_Integer);
+      entry get_res (sum : out Long_Long_Integer);
+   private
+      sum          : Long_Long_Integer := 0;
+      task_counter : Integer      := 0;
+   end task_manager;
+
+   protected body task_manager is
+      procedure set_res (sum : in Long_Long_Integer) is
+      begin
+         task_manager.sum := task_manager.sum + sum;
+         task_counter := task_counter + 1;
+      end set_res;
+
+      entry get_res (sum : out Long_Long_Integer) when task_counter = NumThreads is
+      begin
+         sum := task_manager.sum;
+      end get_res;
+
+   end task_manager;
+
    task type my_task is
       entry start (left, Right : in Integer);
-      entry finish (sum1 : out Long_Long_Integer);
    end my_task;
 
    task body my_task is
@@ -42,10 +63,7 @@ procedure main is
       end start;
 
       sum := part_sum (left, Right);
-      accept finish (sum1 : out Long_Long_Integer) do
-         sum1 := sum;
-      end finish;
-
+      task_manager.set_res (sum);
    end my_task;
 
    tasks : array (1 .. NumThreads) of my_task;
@@ -55,7 +73,6 @@ procedure main is
 
    part_begin     : array (1 .. NumThreads) of Integer;
    part_end       : array (1 .. NumThreads) of Integer;
-   part_sum_value : Long_Long_Integer;
 begin
    create_array;
    sum_singlethread := part_sum (a'First, a'Last);
@@ -79,10 +96,7 @@ begin
    end loop;
 
    sum_multithread := 0;
-   for i in tasks'Range loop
-      tasks (i).finish (part_sum_value);
-      sum_multithread := sum_multithread + part_sum_value;
-   end loop;
+   task_manager.get_res (sum_multithread);
 
    Put_Line ("Multi-thread sum: " & sum_multithread'Img);
 
